@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Sphere App Replica (V5 Final)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* --- General Styling and Background --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Gradient Background matching OG video */
+            background: linear-gradient(180deg, #443a57 0%, #a24b75 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* --- UI Overlay Styles --- */
+        #ui-controls {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            max-width: 450px; 
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #control-panel {
+            background: rgba(255, 255, 255, 0.15); 
+            border-radius: 25px;
+            padding: 20px 15px;
+            
+            /* Frosted Glass Effect */
+            backdrop-filter: blur(12px) saturate(150%); 
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            
+            /* Pink/Purple Tint */
+            background: linear-gradient(180deg, rgba(255, 100, 150, 0.1) 0%, rgba(162, 75, 117, 0.4) 100%);
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 10px 0;
+            height: 30px;
+        }
+
+        .control-row label {
+            width: 80px;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: calc(100% - 100px);
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            margin: 0 5px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        
+        .value-display {
+            width: 45px;
+            text-align: right;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .toggle-button, .reset-button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #e91e63;
+            color: white;
+        }
+        
+        .reset-button {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+        
+        #control-panel-container {
+            transform: translateY(100%);
+            opacity: 0;
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        
+        #control-panel-container.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .top-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 0 10px;
+            margin-bottom: 10px;
+        }
+        
+        #initial-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%); 
+            max-width: 450px;
+            width: 100%;
+            padding: 0 40px;
+            display: flex;
+            justify-content: space-between;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+        
+        .bottom-ui-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 18px;
+            background-color: #e91e63;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        #control-panel {
+            height: 270px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    
+    <!-- Controls Interface -->
+    <div id="ui-controls">
+        <div id="control-panel-container">
+            <div id="control-panel">
+                
+                <div class="top-buttons">
+                    <button id="controls-toggle-btn-top" class="toggle-button">CONTROLS</button>
+                    <button id="reset-btn-top" class="reset-button">RESET</button>
+                </div>
+
+                <div class="control-row">
+                    <label>POINTS</label>
+                    <!-- UPDATED POINTS RANGE -->
+                    <input type="range" id="points" min="800" max="5000" step="100" value="3000">
+                    <span id="points-value" class="value-display">3,000</span>
+                </div>
+                
+                <div class="control-row">
+                    <label>SPEED</label>
+                    <!-- UPDATED SPEED RANGE -->
+                    <input type="range" id="speed" min="0.0" max="3.0" step="0.01" value="0.25">
+                    <span id="speed-value" class="value-display">0.25</span>
+                </div>
+
+                <div class="control-row">
+                    <label>WOBBLE</label>
+                    <input type="range" id="wobble" min="0.0" max="1.0" step="0.01" value="0.00">
+                    <span id="wobble-value" class="value-display">0.00</span>
+                </div>
+
+                <div class="control-row">
+                    <label>SIZE</label>
+                    <!-- UPDATED SIZE RANGE (Internal values 0.05 to 0.20) -->
+                    <input type="range" id="size" min="0.05" max="0.20" step="0.01" value="0.05">
+                    <span id="size-value" class="value-display">1.00</span>
+                </div>
+
+                <div class="control-row">
+                    <label>TRAILS</label>
+                    <input type="range" id="trails" min="0.0" max="1.0" step="0.01" value="0.00">
+                    <span id="trails-value" class="value-display">0.00</span>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    
+    <!-- Initial/Bottom Buttons -->
+    <div id="initial-controls">
+        <button id="controls-toggle-btn-bottom" class="bottom-ui-btn">CONTROLS</button>
+        <button id="reset-btn-bottom" class="bottom-ui-btn">RESET</button>
+    </div>
+
+
+    <script>
+        let scene, camera, renderer;
+        let mainParticles; 
+        let trailSteps = []; 
+        
+        // Increased number of steps for smoother blending
+        const MAX_TRAIL_STEPS = 10; 
+        
+        const container = document.getElementById('canvas-container');
+        const clock = new THREE.Clock();
+        
+        const DARK_BG_COLOR = 0x443a57; 
+
+        // Camera positioning logic (Target Y)
+        const CAMERA_Y_CENTER = 0.0;
+        const CAMERA_Y_LIFTED = -2.0; 
+        let targetCameraY = CAMERA_Y_CENTER;
+
+        // Initial Parameters 
+        const defaults = {
+            points: 3000, 
+            speed: 0.25,
+            wobble: 0.00,
+            size: 0.05, 
+            trails: 0.00,
+        };
+
+        let params = { ...defaults };
+        
+        // --- Shaders ---
+        
+        const particleVertexShader = `
+            uniform float time;
+            uniform float wobbleIntensity;
+            uniform float pointSize;
+            uniform float trailDelay; 
+            uniform float speedFactor;
+
+            attribute float rotationOffset; 
+
+            void main() {
+                vec3 newPosition = position;
+                
+                // Rotation/Speed (Adjust time by delay for trail effect)
+                // The trailDelay controls the positional lag
+                float adjustedTime = time - (trailDelay * 0.2 * speedFactor); 
+                float angle = adjustedTime * 0.5 * speedFactor;
+                float cosA = cos(angle);
+                float sinA = sin(angle);
+
+                newPosition.xz = vec2(newPosition.x * cosA - newPosition.z * sinA, newPosition.x * sinA + newPosition.z * cosA);
+                
+                // Add Wobble
+                float wobble = sin(newPosition.x * 5.0 + adjustedTime * 3.0 + rotationOffset) * cos(newPosition.y * 5.0 + adjustedTime * 4.0);
+                wobble *= wobbleIntensity;
+
+                newPosition += normalize(newPosition) * wobble;
+
+
+                vec4 mvPosition = modelViewMatrix * vec4( newPosition, 1.0 );
+                
+                gl_PointSize = pointSize * ( 300.0 / -mvPosition.z ); 
+
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const particleFragmentShader = `
+            uniform float opacity;
+            void main() {
+                // Circular points
+                float r = distance(gl_PointCoord, vec2(0.5, 0.5));
+                if (r > 0.5) discard;
+                
+                gl_FragColor = vec4(1.0, 1.0, 1.0, opacity);
+            }
+        `;
+
+
+        // --- Three.js Setup ---
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            camera.position.z = 10;
+            camera.position.y = CAMERA_Y_CENTER; 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); 
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(DARK_BG_COLOR, 1); 
+            container.appendChild(renderer.domElement);
+            
+            createParticles(params.points);
+            setupUI();
+            
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        // Generate points using Fibonacci Sphere for equidistant, non-random distribution
+        function generateStructuredSphere(count, radius = 3.0) {
+            const positions = [];
+            const rotationOffsets = [];
+            const phi = Math.PI * (3.0 - Math.sqrt(5.0)); 
+
+            for (let i = 0; i < count; i++) {
+                const y = 1 - (i / (count - 1)) * 2;
+                const r = Math.sqrt(1 - y * y);
+
+                const theta = phi * i; 
+
+                const x = Math.cos(theta) * r * radius;
+                const z = Math.sin(theta) * r * radius;
+                const finalY = y * radius;
+                
+                positions.push(x, finalY, z);
+                rotationOffsets.push(Math.random() * Math.PI * 2); 
+            }
+            return { positions: new Float32Array(positions), rotationOffsets: new Float32Array(rotationOffsets) };
+        }
+
+        function createParticles(count) {
+            // Clean up main particle
+            if (mainParticles) {
+                scene.remove(mainParticles);
+                mainParticles.geometry.dispose();
+                mainParticles.material.dispose();
+            }
+            
+            // Clean up old trail steps
+            trailSteps.forEach(p => {
+                scene.remove(p);
+                p.geometry.dispose();
+                p.material.dispose();
+            });
+            trailSteps = [];
+
+
+            const data = generateStructuredSphere(count);
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+            geometry.setAttribute('rotationOffset', new THREE.BufferAttribute(data.rotationOffsets, 1));
+            
+            // --- Main Particle Material ---
+            const mainMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0.0 },
+                    wobbleIntensity: { value: params.wobble },
+                    pointSize: { value: params.size },
+                    trailDelay: { value: 0.0 }, // No delay for main point
+                    speedFactor: { value: params.speed },
+                    opacity: { value: 1.0 }
+                },
+                vertexShader: particleVertexShader,
+                fragmentShader: particleFragmentShader,
+                transparent: true,
+                blending: THREE.AdditiveBlending, 
+                depthTest: true
+            });
+            mainParticles = new THREE.Points(geometry, mainMaterial);
+            scene.add(mainParticles);
+
+            // --- Multi-Step Trail Particle Setup ---
+            for (let i = 0; i < MAX_TRAIL_STEPS; i++) {
+                const trailMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0.0 },
+                        wobbleIntensity: { value: params.wobble },
+                        pointSize: { value: params.size }, // Initial size, adjusted dynamically
+                        trailDelay: { value: 0.0 }, 
+                        speedFactor: { value: params.speed },
+                        opacity: { value: 0.0 } 
+                    },
+                    vertexShader: particleVertexShader,
+                    fragmentShader: particleFragmentShader,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthTest: true
+                });
+                
+                const trailP = new THREE.Points(geometry, trailMaterial); 
+                scene.add(trailP);
+                trailSteps.push(trailP);
+            }
+        }
+
+        // --- Animation Loop ---
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const time = clock.elapsedTime;
+            
+            // Smooth Camera Movement (Lerping: interpolation)
+            camera.position.y += (targetCameraY - camera.position.y) * 0.1;
+            camera.updateProjectionMatrix();
+
+            if (mainParticles) {
+                
+                // Update Main Particle Uniforms
+                mainParticles.material.uniforms.time.value = time;
+                mainParticles.material.uniforms.wobbleIntensity.value = params.wobble;
+                mainParticles.material.uniforms.speedFactor.value = params.speed;
+                mainParticles.material.uniforms.pointSize.value = params.size;
+
+
+                // Update Multi-Step Trail Particle Uniforms
+                // Reduced scaling factor (0.8) to make the steps overlap heavily
+                const baseDelay = params.trails * 0.8; 
+                const maxOpacity = params.trails * 0.6; // Slightly reduced max opacity for better blending
+
+                const trailsActive = params.trails > 0.01;
+
+                trailSteps.forEach((trail, index) => {
+                    const step = index + 1; 
+                    
+                    // Delay: Linear distribution across the steps
+                    const delayFactor = (step / MAX_TRAIL_STEPS);
+                    const delayValue = baseDelay * delayFactor; 
+                    
+                    // Opacity: Gradually fade from the head (index 0) to the tail (index MAX_TRAIL_STEPS-1)
+                    // The last step should be close to zero opacity.
+                    const opacityFactor = 1.0 - (index / MAX_TRAIL_STEPS);
+                    const opacityValue = maxOpacity * opacityFactor;
+                    
+                    // Size: Slight, gradual reduction towards the tail for smoother visual taper
+                    const sizeFactor = 1.0 - (index * 0.025); // 2.5% reduction per step
+                    
+                    
+                    trail.material.uniforms.time.value = time;
+                    trail.material.uniforms.wobbleIntensity.value = params.wobble;
+                    trail.material.uniforms.speedFactor.value = params.speed;
+                    
+                    // Apply delay and visual taper
+                    trail.material.uniforms.trailDelay.value = delayValue; 
+                    trail.material.uniforms.opacity.value = opacityValue; 
+                    trail.material.uniforms.pointSize.value = params.size * sizeFactor;
+
+                    // Visibility check
+                    trail.visible = trailsActive;
+                });
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // --- UI Logic & Custom Mapping ---
+
+        // Maps the internal 0.05-0.20 range to the display 1-5 range
+        function mapSliderToDisplay(inputValue) {
+            const minInput = 0.05;
+            const maxInput = 0.20;
+            const minDisplay = 1.0;
+            const maxDisplay = 5.0;
+            
+            // Normalize the input (0 to 1)
+            const normalized = (inputValue - minInput) / (maxInput - minInput);
+            
+            // Scale to output range (1 to 5)
+            const displayValue = minDisplay + normalized * (maxDisplay - minDisplay);
+            return displayValue;
+        }
+
+        function updateValueDisplay(id, value) {
+            const display = document.getElementById(`${id}-value`);
+            if (id === 'points') {
+                display.textContent = Math.round(value).toLocaleString();
+            } else if (id === 'size') {
+                 // Use custom mapping for the display value
+                display.textContent = mapSliderToDisplay(value).toFixed(2);
+            }
+            else {
+                display.textContent = parseFloat(value).toFixed(2);
+            }
+        }
+
+        function setupUI() {
+            const controlsPanel = document.getElementById('control-panel-container');
+            const initialControls = document.getElementById('initial-controls');
+            
+            const toggleControls = (show) => {
+                if (show) {
+                    controlsPanel.classList.add('visible');
+                    initialControls.style.display = 'none';
+                    targetCameraY = CAMERA_Y_LIFTED; // Move camera down to lift the sphere
+                } else {
+                    controlsPanel.classList.remove('visible');
+                    initialControls.style.display = 'flex';
+                    targetCameraY = CAMERA_Y_CENTER; // Center the sphere
+                }
+            };
+
+            toggleControls(false); 
+
+            document.getElementById('controls-toggle-btn-top').onclick = () => toggleControls(false);
+            document.getElementById('controls-toggle-btn-bottom').onclick = () => toggleControls(true);
+            
+            const resetApp = () => {
+                params = { ...defaults };
+                createParticles(params.points);
+                
+                // Reset UI sliders
+                document.getElementById('points').value = defaults.points;
+                document.getElementById('speed').value = defaults.speed;
+                document.getElementById('wobble').value = defaults.wobble;
+                document.getElementById('size').value = defaults.size;
+                document.getElementById('trails').value = defaults.trails;
+                
+                // Reset Display values
+                updateValueDisplay('points', defaults.points);
+                updateValueDisplay('speed', defaults.speed);
+                updateValueDisplay('wobble', defaults.wobble);
+                updateValueDisplay('size', defaults.size);
+                updateValueDisplay('trails', defaults.trails);
+            };
+
+            document.getElementById('reset-btn-top').onclick = resetApp;
+            document.getElementById('reset-btn-bottom').onclick = resetApp;
+
+            const sliders = [
+                { id: 'points', param: 'points', effect: createParticles },
+                { id: 'speed', param: 'speed' },
+                { id: 'wobble', param: 'wobble' },
+                { id: 'size', param: 'size' },
+                { id: 'trails', param: 'trails' }
+            ];
+
+            sliders.forEach(s => {
+                const input = document.getElementById(s.id);
+                
+                // Set initial values
+                input.value = defaults[s.param]; 
+                updateValueDisplay(s.id, params[s.param]);
+                
+                input.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    
+                    params[s.param] = val;
+                    updateValueDisplay(s.id, val);
+                    
+                    if (s.effect === createParticles) {
+                        s.effect(Math.round(val));
+                    }
+                });
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
